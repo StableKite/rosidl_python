@@ -118,12 +118,12 @@ class Metaclass_@(message.structure.namespaced_type.name)(type):
                 traceback.format_exc())
         else:
 @{
-suffix = '__'.join(message.structure.namespaced_type.namespaces[1:]) + '__' + convert_camel_case_to_lower_case_underscore(message.structure.namespaced_type.name)
+type_support_suffix = '__'.join(message.structure.namespaced_type.namespaces[1:]) + '__' + convert_camel_case_to_lower_case_underscore(message.structure.namespaced_type.name)
 }@
-            cls._CREATE_ROS_MESSAGE = module.create_ros_message_msg__@(suffix)
-            cls._CONVERT_FROM_PY = module.convert_from_py_msg__@(suffix)
-            cls._CONVERT_TO_PY = module.convert_to_py_msg__@(suffix)
-            cls._DESTROY_ROS_MESSAGE = module.destroy_ros_message_msg__@(suffix)
+            cls._CREATE_ROS_MESSAGE = module.create_ros_message_msg__@(type_support_suffix)
+            cls._CONVERT_FROM_PY = module.convert_from_py_msg__@(type_support_suffix)
+            cls._CONVERT_TO_PY = module.convert_to_py_msg__@(type_support_suffix)
+            cls._DESTROY_ROS_MESSAGE = module.destroy_ros_message_msg__@(type_support_suffix)
 @{
 importable_typesupports = set()
 for member in message.structure.members:
@@ -156,7 +156,7 @@ for member in message.structure.members:
 
             # Publish the readiness marker after every conversion capsule and
             # nested message dependency is available to other Python threads.
-            cls._TYPE_SUPPORT = module.type_support_msg__@(suffix)
+            cls._TYPE_SUPPORT = module.type_support_msg__@(type_support_suffix)
 
     @@classmethod
     def __prepare__(cls, name, bases, **kwargs):
