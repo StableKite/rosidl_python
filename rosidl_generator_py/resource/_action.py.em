@@ -51,8 +51,6 @@ class Metaclass_@(action.namespaced_type.name)(type):
                 'Failed to import needed modules for type support:\n' +
                 traceback.format_exc())
         else:
-            cls._TYPE_SUPPORT = module.type_support_action__@('__'.join(action.namespaced_type.namespaces[1:]))_@(action_name)
-
             from action_msgs.msg import _goal_status_array
             if _goal_status_array.Metaclass_GoalStatusArray._TYPE_SUPPORT is None:
                 _goal_status_array.Metaclass_GoalStatusArray.__import_type_support__()
@@ -67,6 +65,8 @@ class Metaclass_@(action.namespaced_type.name)(type):
                 @(module_name).Metaclass_@(action.get_result_service.namespaced_type.name).__import_type_support__()
             if @(module_name).Metaclass_@(action.feedback_message.structure.namespaced_type.name)._TYPE_SUPPORT is None:
                 @(module_name).Metaclass_@(action.feedback_message.structure.namespaced_type.name).__import_type_support__()
+
+            cls._TYPE_SUPPORT = module.type_support_action__@('__'.join(action.namespaced_type.namespaces[1:]))_@(action_name)
 
 
 class @(action.namespaced_type.name)(metaclass=Metaclass_@(action.namespaced_type.name)):

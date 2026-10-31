@@ -39,8 +39,6 @@ class Metaclass_@(service.namespaced_type.name)(type):
                 'Failed to import needed modules for type support:\n' +
                 traceback.format_exc())
         else:
-            cls._TYPE_SUPPORT = module.type_support_srv__@('__'.join(service.namespaced_type.namespaces[1:]))_@(service_name)
-
             from @('.'.join(service.namespaced_type.namespaces)) import @(module_name)
             if @(module_name).Metaclass_@(service.request_message.structure.namespaced_type.name)._TYPE_SUPPORT is None:
                 @(module_name).Metaclass_@(service.request_message.structure.namespaced_type.name).__import_type_support__()
@@ -48,6 +46,8 @@ class Metaclass_@(service.namespaced_type.name)(type):
                 @(module_name).Metaclass_@(service.response_message.structure.namespaced_type.name).__import_type_support__()
             if @(module_name).Metaclass_@(service.event_message.structure.namespaced_type.name)._TYPE_SUPPORT is None:
                 @(module_name).Metaclass_@(service.event_message.structure.namespaced_type.name).__import_type_support__()
+
+            cls._TYPE_SUPPORT = module.type_support_srv__@('__'.join(service.namespaced_type.namespaces[1:]))_@(service_name)
 
 
 class @(service.namespaced_type.name)(metaclass=Metaclass_@(service.namespaced_type.name)):
