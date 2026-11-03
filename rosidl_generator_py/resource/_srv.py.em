@@ -23,10 +23,10 @@ TEMPLATE(
 class Metaclass_@(service.namespaced_type.name)(type):
     """Metaclass of service '@(service.namespaced_type.name)'."""
 
-    _TYPE_SUPPORT = None
+    _TYPE_SUPPORT: _rosidl_builtins.object | None = None
 
     @@classmethod
-    def __import_type_support__(cls):
+    def __import_type_support__(cls) -> None:
         try:
             from rosidl_generator_py import import_type_support
             module = import_type_support('@(package_name)')
@@ -40,11 +40,11 @@ class Metaclass_@(service.namespaced_type.name)(type):
                 traceback.format_exc())
         else:
             from @('.'.join(service.namespaced_type.namespaces)) import @(module_name)
-            if @(module_name).Metaclass_@(service.request_message.structure.namespaced_type.name)._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(@(module_name).Metaclass_@(service.request_message.structure.namespaced_type.name), '_TYPE_SUPPORT') is None:
                 @(module_name).Metaclass_@(service.request_message.structure.namespaced_type.name).__import_type_support__()
-            if @(module_name).Metaclass_@(service.response_message.structure.namespaced_type.name)._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(@(module_name).Metaclass_@(service.response_message.structure.namespaced_type.name), '_TYPE_SUPPORT') is None:
                 @(module_name).Metaclass_@(service.response_message.structure.namespaced_type.name).__import_type_support__()
-            if @(module_name).Metaclass_@(service.event_message.structure.namespaced_type.name)._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(@(module_name).Metaclass_@(service.event_message.structure.namespaced_type.name), '_TYPE_SUPPORT') is None:
                 @(module_name).Metaclass_@(service.event_message.structure.namespaced_type.name).__import_type_support__()
 
             cls._TYPE_SUPPORT = module.type_support_srv__@('__'.join(service.namespaced_type.namespaces[1:]))_@(service_name)
@@ -55,5 +55,5 @@ class @(service.namespaced_type.name)(metaclass=Metaclass_@(service.namespaced_t
     from @('.'.join(service.namespaced_type.namespaces)).@(module_name) import @(service.response_message.structure.namespaced_type.name) as Response
     from @('.'.join(service.namespaced_type.namespaces)).@(module_name) import @(service.event_message.structure.namespaced_type.name) as Event
 
-    def __init__(self):
+    def __init__(self) -> None:
         raise NotImplementedError('Service classes can not be instantiated')

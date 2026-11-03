@@ -34,6 +34,13 @@ from rosidl_parser.definition import UNSIGNED_INTEGER_TYPES
 @{
 from collections import OrderedDict
 imports = OrderedDict()
+imports.setdefault('import rosidl_parser.definition', [])
+has_nested_members = False
+for member in message.structure.members:
+    if isinstance(member.type, AbstractNestedType):
+        has_nested_members = True
+if has_nested_members:
+    imports.setdefault('import collections.abc as _rosidl_abc', [])
 
 
 def field_annotations(
@@ -105,6 +112,13 @@ field_types = {
     for member in message.structure.members
     if member.name != EMPTY_STRUCTURE_REQUIRED_MEMBER_NAME
 }
+for member in message.structure.members:
+    if (
+        not member.has_annotation('default') and isinstance(member.type, Array) and
+        isinstance(member.type.value_type, BasicType) and
+        member.type.value_type.typename in SPECIAL_NESTED_BASIC_TYPES
+    ):
+        imports.setdefault('from typing import cast as _rosidl_cast', [])
 }@
 @#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 @
@@ -132,23 +146,32 @@ field_types = {
 @#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 
+class _rosidl_Init_@(message.structure.namespaced_type.name)(_rosidl_TypedDict, total=False):
+    check_fields: _rosidl_builtins.bool
+@[for member in message.structure.members]@
+@[  if member.name != EMPTY_STRUCTURE_REQUIRED_MEMBER_NAME]@
+    @(member.name): @(field_types[member.name][1])
+@[  end if]@
+@[end for]@
+
+
 class Metaclass_@(message.structure.namespaced_type.name)(type):
     """Metaclass of message '@(message.structure.namespaced_type.name)'."""
 
-    _CREATE_ROS_MESSAGE = None
-    _CONVERT_FROM_PY = None
-    _CONVERT_TO_PY = None
-    _DESTROY_ROS_MESSAGE = None
-    _TYPE_SUPPORT = None
+    _CREATE_ROS_MESSAGE: _rosidl_builtins.object | None = None
+    _CONVERT_FROM_PY: _rosidl_builtins.object | None = None
+    _CONVERT_TO_PY: _rosidl_builtins.object | None = None
+    _DESTROY_ROS_MESSAGE: _rosidl_builtins.object | None = None
+    _TYPE_SUPPORT: _rosidl_builtins.object | None = None
 
-    __constants = {
+    __constants@(': _rosidl_builtins.dict[_rosidl_builtins.str, _rosidl_builtins.object]' if not message.constants else '') = {
 @[for constant in message.constants]@
         '@(constant.name)': @constant_value_to_py(constant.type, constant.value),
 @[end for]@
     }
 
     @@classmethod
-    def __import_type_support__(cls):
+    def __import_type_support__(cls) -> None:
         try:
             from rosidl_generator_py import import_type_support
             module = import_type_support('@(package_name)')
@@ -194,7 +217,7 @@ for member in message.structure.members:
 @[for typename in sorted(importable_typesupports)]@
 
             from @('.'.join(typename[:-2])) import @(typename[-2])
-            if @(typename[-1]).__class__._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(@(typename[-1]).__class__, '_TYPE_SUPPORT') is None:
                 @(typename[-1]).__class__.__import_type_support__()
 @[end for]@
 
@@ -203,7 +226,10 @@ for member in message.structure.members:
             cls._TYPE_SUPPORT = module.type_support_msg__@(type_support_suffix)
 
     @@classmethod
-    def __prepare__(cls, name, bases, **kwargs):
+    def __prepare__(
+        cls, name: _rosidl_builtins.str,
+        bases: _rosidl_builtins.tuple[_rosidl_builtins.type[_rosidl_builtins.object], ...], **kwargs: _rosidl_builtins.object
+    ) -> _rosidl_builtins.dict[_rosidl_builtins.str, _rosidl_builtins.object]:
         # list constant names here so that they appear in the help text of
         # the message class under "Data and other attributes defined here:"
         # as well as populate each message instance
@@ -259,7 +285,7 @@ class @(message.structure.namespaced_type.name)(metaclass=Metaclass_@(message.st
         '_check_fields',
     ]
 
-    _fields_and_field_types = {
+    _fields_and_field_types: _rosidl_builtins.dict[_rosidl_builtins.str, _rosidl_builtins.str] = {
 @[for member in message.structure.members]@
 @[  if len(message.structure.members) == 1 and member.name == EMPTY_STRUCTURE_REQUIRED_MEMBER_NAME]@
 @[    continue]@
@@ -304,7 +330,7 @@ string@
 
     # This attribute is used to store an rosidl_parser.definition variable
     # related to the data type of each of the components the message.
-    SLOT_TYPES = (
+    SLOT_TYPES: _rosidl_builtins.tuple[rosidl_parser.definition.AbstractType, ...] = (
 @[for member in message.structure.members]@
 @[  if len(message.structure.members) == 1 and member.name == EMPTY_STRUCTURE_REQUIRED_MEMBER_NAME]@
 @[    continue]@
@@ -340,7 +366,7 @@ if isinstance(type_, AbstractNestedType):
 @[end for]@
     )
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: _rosidl_Unpack[_rosidl_Init_@(message.structure.namespaced_type.name)]) -> None:
         if 'check_fields' in kwargs:
             self._check_fields = kwargs['check_fields']
         else:
@@ -377,23 +403,23 @@ if isinstance(type_, AbstractNestedType):
 @[      if isinstance(type_, BasicType) and type_.typename == 'octet']@
         self.@(member.name) = kwargs.get(
             '@(member.name)',
-            [bytes([0]) for x in range(@(member.type.size))]
+            [bytes([0]) for _x in range(@(member.type.size))]
         )
 @[      elif isinstance(type_, BasicType) and type_.typename in CHARACTER_TYPES]@
         self.@(member.name) = kwargs.get(
             '@(member.name)',
-            [chr(0) for x in range(@(member.type.size))]
+            [chr(0) for _x in range(@(member.type.size))]
         )
 @[      else]@
 @[        if isinstance(member.type.value_type, BasicType) and member.type.value_type.typename in SPECIAL_NESTED_BASIC_TYPES]@
         if '@(member.name)' not in kwargs:
             self.@(member.name) = numpy.zeros(@(member.type.size), dtype=@(SPECIAL_NESTED_BASIC_TYPES[member.type.value_type.typename]['dtype']))
         else:
-            self.@(member.name) = kwargs.get('@(member.name)')
+            self.@(member.name) = _rosidl_cast('@(field_types[member.name][1])', kwargs.get('@(member.name)'))
 @[        else]@
         self.@(member.name) = kwargs.get(
             '@(member.name)',
-            [@(get_python_type(type_))() for x in range(@(member.type.size))]
+            [@(get_python_type(type_))() for _x in range(@(member.type.size))]
         )
 @[        end if]@
 @[      end if]@
@@ -413,11 +439,11 @@ if isinstance(type_, AbstractNestedType):
 @[  end if]@
 @[end for]@
 
-    def __repr__(self):
+    def __repr__(self) -> _rosidl_builtins.str:
         typename = self.__class__.__module__.split('.')
         typename.pop()
         typename.append(self.__class__.__name__)
-        args = []
+        args: _rosidl_builtins.list[_rosidl_builtins.str] = []
         for s, t in zip(self.get_fields_and_field_types().keys(), self.SLOT_TYPES):
             field = getattr(self, s)
             fieldstr = repr(field)
@@ -440,7 +466,7 @@ if isinstance(type_, AbstractNestedType):
             args.append(s + '=' + fieldstr)
         return '%s(%s)' % ('.'.join(typename), ', '.join(args))
 
-    def __eq__(self, other):
+    def __eq__(self, other: _rosidl_builtins.object) -> _rosidl_builtins.bool:
         if not isinstance(other, self.__class__):
             return False
 @[for member in message.structure.members]@
@@ -457,7 +483,7 @@ if isinstance(type_, AbstractNestedType):
         return True
 
     @@classmethod
-    def get_fields_and_field_types(cls):
+    def get_fields_and_field_types(cls) -> _rosidl_builtins.dict[_rosidl_builtins.str, _rosidl_builtins.str]:
         from copy import copy
         return copy(cls._fields_and_field_types)
 @[for member in message.structure.members]@
@@ -525,7 +551,8 @@ getter_type, setter_type = field_types[member.name]
 @[  elif isinstance(type_, AbstractGenericString) and type_.has_maximum_size()]@
             from collections import UserString
 @[  elif isinstance(type_, BasicType) and type_.typename == 'octet']@
-            from collections.abc import ByteString
+            from collections import abc as _rosidl_abc_runtime
+            ByteString: _rosidl_builtins.type[_rosidl_abc_runtime.Sequence[_rosidl_builtins.int]] = _rosidl_builtins.getattr(_rosidl_abc_runtime, 'ByteString')
 @[  elif isinstance(type_, BasicType) and type_.typename in CHARACTER_TYPES]@
             from collections import UserString
 @[  end if]@

@@ -9,9 +9,10 @@ from os import getenv
 
 import array as _rosidl_array
 import builtins as _rosidl_builtins
-import collections.abc as _rosidl_abc
 from types import GenericAlias as _rosidl_GenericAlias
 from typing import TYPE_CHECKING
+from typing import TypedDict as _rosidl_TypedDict
+from typing import Unpack as _rosidl_Unpack
 
 if TYPE_CHECKING:
     _rosidl_int_array = _rosidl_array.array[_rosidl_builtins.int]
