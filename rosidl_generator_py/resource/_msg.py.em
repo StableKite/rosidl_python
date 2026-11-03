@@ -34,6 +34,45 @@ from rosidl_parser.definition import UNSIGNED_INTEGER_TYPES
 @{
 from collections import OrderedDict
 imports = OrderedDict()
+
+
+def field_annotations(
+    field_type, imports=imports, NamespacedType=NamespacedType,
+    AbstractNestedType=AbstractNestedType, BasicType=BasicType,
+    AbstractSequence=AbstractSequence, Array=Array,
+    ACTION_GOAL_SUFFIX=ACTION_GOAL_SUFFIX, ACTION_RESULT_SUFFIX=ACTION_RESULT_SUFFIX,
+    ACTION_FEEDBACK_SUFFIX=ACTION_FEEDBACK_SUFFIX,
+    SPECIAL_NESTED_BASIC_TYPES=SPECIAL_NESTED_BASIC_TYPES,
+    FLOATING_POINT_TYPES=FLOATING_POINT_TYPES, get_python_type=get_python_type,
+    convert_camel_case_to_lower_case_underscore=convert_camel_case_to_lower_case_underscore
+):
+    # EmPy executes blocks with separate globals/locals. Capture local helpers
+    # and the import map for this message when defining the temporary generator function.
+    nested = isinstance(field_type, AbstractNestedType)
+    value_type = field_type.value_type if nested else field_type
+    if isinstance(value_type, NamespacedType):
+        module = '.'.join(value_type.namespaces)
+        if value_type.name.endswith((ACTION_GOAL_SUFFIX, ACTION_RESULT_SUFFIX, ACTION_FEEDBACK_SUFFIX)):
+            module += '._' + convert_camel_case_to_lower_case_underscore(value_type.name.rsplit('_', 1)[0])
+        alias = '_rosidl_ns_' + module.replace('.', '_')
+        imports.setdefault('import ' + module + ' as ' + alias, [])
+        element_type = alias + '.' + value_type.name
+    else:
+        element_type = 'builtins.' + get_python_type(value_type)
+    if not nested:
+        return element_type, element_type
+    sequence = '_rosidl_abc.Sequence[' + element_type + '] | _rosidl_abc.Set[' + element_type + ']'
+    if isinstance(value_type, BasicType) and value_type.typename in SPECIAL_NESTED_BASIC_TYPES:
+        if isinstance(field_type, AbstractSequence):
+            array_alias = '_rosidl_float_array' if value_type.typename in FLOATING_POINT_TYPES else '_rosidl_int_array'
+            return array_alias, sequence + ' | ' + array_alias
+        if isinstance(field_type, Array):
+            imports.setdefault('import numpy as _rosidl_numpy', [])
+            dtype = SPECIAL_NESTED_BASIC_TYPES[value_type.typename]['dtype'].replace('numpy.', '_rosidl_numpy.')
+            array_type = '_rosidl_numpy.ndarray[_rosidl_builtins.tuple[_rosidl_builtins.int, ...], _rosidl_numpy.dtype[' + dtype + ']]'
+            return array_type, sequence + ' | ' + array_type
+    return sequence, sequence
+
 if message.structure.members:
     imports.setdefault(
         'import rosidl_parser.definition', [])  # used for SLOT_TYPES
@@ -61,6 +100,11 @@ for member in message.structure.members:
         else:
             assert False
         member_names.append(member.name)
+field_types = {
+    member.name: field_annotations(member.type)
+    for member in message.structure.members
+    if member.name != EMPTY_STRUCTURE_REQUIRED_MEMBER_NAME
+}
 }@
 @#>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 @
@@ -431,17 +475,15 @@ import builtins
 noqa_string = ''
 if member.name in dict(inspect.getmembers(builtins)).keys():
     noqa_string = '  # noqa: A003'
-scalar_type = None
-if isinstance(member.type, (BasicType, AbstractGenericString)):
-    scalar_type = 'builtins.' + get_python_type(member.type)
+getter_type, setter_type = field_types[member.name]
 }@
     @@builtins.property@(noqa_string)
-    def @(member.name)(self)@(' -> ' + scalar_type if scalar_type else ''):@(noqa_string)
+    def @(member.name)(self) -> @(getter_type):@(noqa_string)
         """Message field '@(member.name)'."""
         return self._@(member.name)
 
     @@@(member.name).setter@(noqa_string)
-    def @(member.name)(self, value@(': ' + scalar_type if scalar_type else ''))@(' -> None' if scalar_type else ''):@(noqa_string)
+    def @(member.name)(self, value: @(setter_type)) -> None:@(noqa_string)
         if self._check_fields:
 @[  if isinstance(member.type, AbstractNestedType) and isinstance(member.type.value_type, BasicType) and member.type.value_type.typename in SPECIAL_NESTED_BASIC_TYPES]@
 @[    if isinstance(member.type, Array)]@
