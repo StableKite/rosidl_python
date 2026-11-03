@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import importlib
+import importlib.util
 import pathlib
 from collections.abc import Iterable, Sequence
 from contextlib import AbstractContextManager
@@ -55,6 +57,10 @@ class _DescriptionTuples(Protocol):
     ) -> list[str]: ...
 
 
+class _PackagedSDKResources(Protocol):
+    def configure_environment(self) -> None: ...
+
+
 legacy_generator_arguments = cast(_LegacyArguments, getattr(_helpers, 'legacy_generator_arguments'))
 generator_arguments_file = cast(_ArgumentsFile, getattr(_helpers, 'generator_arguments_file'))
 build_type_description_tuples = cast(_DescriptionTuples, getattr(_helpers, 'build_type_description_tuples'))
@@ -66,6 +72,9 @@ class GeneratePython(GenerateCommandExtension):
     def __init__(
         self, name: str, *, typesupport_implementations: Iterable[str] | None = None
     ) -> None:
+        if importlib.util.find_spec('_stablekite_ros_sdk') is not None:
+            sdk = cast(_PackagedSDKResources, importlib.import_module('_stablekite_ros_sdk'))
+            sdk.configure_environment()
         super().__init__(name)
         if typesupport_implementations is None:
             typesupport_implementations = ['rosidl_typesupport_c']
