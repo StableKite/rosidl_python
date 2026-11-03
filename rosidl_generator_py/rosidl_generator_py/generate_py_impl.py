@@ -12,15 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ast import literal_eval
+from ast import AST, literal_eval
+from collections.abc import Callable, Iterable, Mapping
 import keyword
 import os
 import pathlib
 import sys
+from typing import NotRequired, Protocol, TypeVar, TypedDict, cast
 
 from rosidl_parser.definition import AbstractGenericString
 from rosidl_parser.definition import AbstractNestedType
 from rosidl_parser.definition import AbstractSequence
+from rosidl_parser.definition import AbstractType
 from rosidl_parser.definition import Action
 from rosidl_parser.definition import Array
 from rosidl_parser.definition import BasicType
@@ -28,18 +31,77 @@ from rosidl_parser.definition import CHARACTER_TYPES
 from rosidl_parser.definition import FLOATING_POINT_TYPES
 from rosidl_parser.definition import IdlContent
 from rosidl_parser.definition import IdlLocator
+from rosidl_parser.definition import IdlFile
 from rosidl_parser.definition import INTEGER_TYPES
 from rosidl_parser.definition import Message
+from rosidl_parser.definition import Member
 from rosidl_parser.definition import NamespacedType
 from rosidl_parser.definition import Service
-from rosidl_parser.parser import parse_idl_file
-from rosidl_pycommon import convert_camel_case_to_lower_case_underscore
-from rosidl_pycommon import expand_template
-from rosidl_pycommon import generate_files
-from rosidl_pycommon import get_newest_modification_time
-from rosidl_pycommon import read_generator_arguments
+import rosidl_parser.parser as _parser
+import rosidl_pycommon as _pycommon
 
-SPECIAL_NESTED_BASIC_TYPES = {
+_StrPath = str | os.PathLike[str]
+
+
+class _GeneratorArguments(TypedDict):
+    package_name: str
+    output_dir: str
+    template_dir: str
+    target_dependencies: list[str]
+    idl_tuples: NotRequired[list[str]]
+    ros_interface_dependencies: NotRequired[list[str]]
+    ros_interface_files: NotRequired[list[str]]
+    type_description_tuples: NotRequired[list[str]]
+
+
+class _GenerateFiles(Protocol):
+    def __call__(
+        self, generator_arguments_file: _StrPath, mapping: Mapping[str, str],
+        additional_context: Mapping[str, object] | None = None,
+        keep_case: bool = False,
+        post_process_callback: Callable[[str], str] | None = None
+    ) -> list[str]: ...
+
+
+class _ExpandTemplate(Protocol):
+    def __call__(
+        self, template_name: _StrPath, data: Mapping[str, object], output_file: _StrPath,
+        minimum_timestamp: float | None = None, template_basepath: _StrPath | None = None,
+        post_process_callback: Callable[[str], str] | None = None
+    ) -> None: ...
+
+
+class _ParseIdlFile(Protocol):
+    def __call__(self, locator: IdlLocator, png_file: _StrPath | None = None) -> IdlFile: ...
+
+
+_ElementT = TypeVar('_ElementT')
+
+
+class _Content(Protocol):
+    elements: list[object]
+
+    def get_elements_of_type(self, type_: type[_ElementT]) -> list[_ElementT]: ...
+
+
+# These are the original SDK functions. Casts describe the unannotated provider
+# interfaces and retain exact function identity and all runtime behavior.
+parse_idl_file = cast(_ParseIdlFile, getattr(_parser, 'parse_idl_file'))
+convert_camel_case_to_lower_case_underscore = cast(
+    Callable[[str], str], getattr(_pycommon, 'convert_camel_case_to_lower_case_underscore'))
+expand_template = cast(_ExpandTemplate, getattr(_pycommon, 'expand_template'))
+generate_files = cast(_GenerateFiles, getattr(_pycommon, 'generate_files'))
+get_newest_modification_time = cast(
+    Callable[[Iterable[_StrPath]], float | None], getattr(_pycommon, 'get_newest_modification_time'))
+read_generator_arguments = cast(
+    Callable[[_StrPath], _GeneratorArguments], getattr(_pycommon, 'read_generator_arguments'))
+
+
+class _NestedInfo(TypedDict):
+    dtype: str
+    type_code: str
+
+SPECIAL_NESTED_BASIC_TYPES: dict[str, _NestedInfo] = {
     'float': {'dtype': 'numpy.float32', 'type_code': 'f'},
     'double': {'dtype': 'numpy.float64', 'type_code': 'd'},
     'int8': {'dtype': 'numpy.int8', 'type_code': 'b'},
@@ -53,7 +115,9 @@ SPECIAL_NESTED_BASIC_TYPES = {
 }
 
 
-def generate_py(generator_arguments_file, typesupport_impls):
+def generate_py(
+    generator_arguments_file: _StrPath, typesupport_impls: Iterable[str]
+) -> list[str]:
     mapping = {
         '_idl.py.em': '_%s.py',
         '_idl_support.c.em': '_%s_s.c',
@@ -64,8 +128,8 @@ def generate_py(generator_arguments_file, typesupport_impls):
     package_name = args['package_name']
 
     # expand init modules for each directory
-    modules = {}
-    idl_content = IdlContent()
+    modules: dict[str, set[str]] = {}
+    idl_content = cast(_Content, IdlContent())
     for idl_tuple in args.get('idl_tuples', []):
         idl_parts = idl_tuple.rsplit(':', 1)
         assert len(idl_parts) == 2
@@ -76,11 +140,13 @@ def generate_py(generator_arguments_file, typesupport_impls):
 
         locator = IdlLocator(*idl_parts)
         idl_file = parse_idl_file(locator)
-        idl_content.elements += idl_file.content.elements
+        idl_content.elements += cast(_Content, idl_file.content).elements
 
     # NOTE(sam): remove when a language specific name mangling is implemented
 
-    def print_warning_if_reserved_keyword(member_name, interface_type, interface_name):
+    def print_warning_if_reserved_keyword(
+        member_name: str, interface_type: str, interface_name: str
+    ) -> None:
         if (keyword.iskeyword(member.name)):
             print(
                 "Member name '{}' in the {} '{}' is a "
@@ -90,38 +156,38 @@ def generate_py(generator_arguments_file, typesupport_impls):
                 file=sys.stderr)
 
     for message in idl_content.get_elements_of_type(Message):
-        for member in message.structure.members:
+        for member in cast('Iterable[Member]', getattr(message.structure, 'members')):
             print_warning_if_reserved_keyword(
                 member.name, 'message',
                 message.structure.namespaced_type.name)
 
     for service in idl_content.get_elements_of_type(Service):
-        for member in service.request_message.structure.members:
+        for member in cast('Iterable[Member]', getattr(service.request_message.structure, 'members')):
             print_warning_if_reserved_keyword(
                 member.name, 'service request',
                 service.namespaced_type.name)
-        for member in service.response_message.structure.members:
+        for member in cast('Iterable[Member]', getattr(service.response_message.structure, 'members')):
             print_warning_if_reserved_keyword(
                 member.name, 'service response',
                 service.namespaced_type.name)
 
     for action in idl_content.get_elements_of_type(Action):
-        for member in action.goal.structure.members:
+        for member in cast('Iterable[Member]', getattr(action.goal.structure, 'members')):
             print_warning_if_reserved_keyword(
                 member.name, 'action goal',
                 action.namespaced_type.name)
-        for member in action.feedback.structure.members:
+        for member in cast('Iterable[Member]', getattr(action.feedback.structure, 'members')):
             print_warning_if_reserved_keyword(
                 member.name, 'action feedback',
                 action.namespaced_type.name)
-        for member in action.result.structure.members:
+        for member in cast('Iterable[Member]', getattr(action.result.structure, 'members')):
             print_warning_if_reserved_keyword(
                 member.name, 'action result',
                 action.namespaced_type.name)
 
     for subfolder in modules.keys():
         with open(os.path.join(args['output_dir'], subfolder, '__init__.py'), 'w') as f:
-            module_names = {}
+            module_names: dict[str, str] = {}
             for idl_stem in modules[subfolder]:
                 module_names[idl_stem] = '_' + \
                     convert_camel_case_to_lower_case_underscore(idl_stem)
@@ -130,36 +196,36 @@ def generate_py(generator_arguments_file, typesupport_impls):
                     sorted((value, key) for (key, value) in module_names.items()):
                 f.write(
                     f'from {package_name}.{subfolder}.{module_name} import '
-                    f'{idl_stem}  # noqa: F401\n')
+                    f'{idl_stem} as {idl_stem}  # noqa: F401\n')
                 if subfolder == 'srv':
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_Event  # noqa: F401\n')
+                        f'{idl_stem}_Event as {idl_stem}_Event  # noqa: F401\n')
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_Request  # noqa: F401\n')
+                        f'{idl_stem}_Request as {idl_stem}_Request  # noqa: F401\n')
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_Response  # noqa: F401\n')
+                        f'{idl_stem}_Response as {idl_stem}_Response  # noqa: F401\n')
                 elif subfolder == 'action':
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_GetResult_Event  # noqa: F401\n')
+                        f'{idl_stem}_GetResult_Event as {idl_stem}_GetResult_Event  # noqa: F401\n')
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_GetResult_Request  # noqa: F401\n')
+                        f'{idl_stem}_GetResult_Request as {idl_stem}_GetResult_Request  # noqa: F401\n')
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_GetResult_Response  # noqa: F401\n')
+                        f'{idl_stem}_GetResult_Response as {idl_stem}_GetResult_Response  # noqa: F401\n')
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_SendGoal_Event  # noqa: F401\n')
+                        f'{idl_stem}_SendGoal_Event as {idl_stem}_SendGoal_Event  # noqa: F401\n')
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_SendGoal_Request  # noqa: F401\n')
+                        f'{idl_stem}_SendGoal_Request as {idl_stem}_SendGoal_Request  # noqa: F401\n')
                     f.write(
                         f'from {package_name}.{subfolder}.{module_name} import '
-                        f'{idl_stem}_SendGoal_Response  # noqa: F401\n')
+                        f'{idl_stem}_SendGoal_Response as {idl_stem}_SendGoal_Response  # noqa: F401\n')
 
     # expand templates per available typesupport implementation
     template_dir = args['template_dir']
@@ -195,14 +261,14 @@ def generate_py(generator_arguments_file, typesupport_impls):
     return generated_files
 
 
-def value_to_py(type_, value, array_as_tuple=False):
+def value_to_py(type_: AbstractType, value: object, array_as_tuple: bool = False) -> str:
     assert value is not None
 
     if not isinstance(type_, AbstractNestedType):
         return primitive_value_to_py(type_, value)
 
-    py_values = []
-    for single_value in literal_eval(value):
+    py_values: list[str] = []
+    for single_value in cast('Iterable[object]', literal_eval(cast('str | AST', value))):
         py_value = primitive_value_to_py(type_.value_type, single_value)
         py_values.append(py_value)
 
@@ -225,11 +291,11 @@ def value_to_py(type_, value, array_as_tuple=False):
         return '[%s]' % ', '.join(py_values)
 
 
-def primitive_value_to_py(type_, value):
+def primitive_value_to_py(type_: AbstractType, value: object) -> str:
     assert value is not None
 
     if isinstance(type_, AbstractGenericString):
-        return quoted_string(value)
+        return quoted_string(cast(str, value))
 
     assert isinstance(type_, BasicType)
 
@@ -243,7 +309,7 @@ def primitive_value_to_py(type_, value):
         return repr('%c' % value)
 
     if type_.typename == 'octet':
-        return repr(bytes([value]))
+        return repr(bytes([cast(int, value)]))
 
     if type_.typename in FLOATING_POINT_TYPES:
         return '%s' % value
@@ -251,7 +317,7 @@ def primitive_value_to_py(type_, value):
     assert False, "unknown primitive type '%s'" % type_.typename
 
 
-def constant_value_to_py(type_, value):
+def constant_value_to_py(type_: AbstractType, value: object) -> str:
     assert value is not None
 
     if isinstance(type_, BasicType):
@@ -265,18 +331,18 @@ def constant_value_to_py(type_, value):
             return repr('%c' % value)
 
         if type_.typename == 'octet':
-            return repr(bytes([value]))
+            return repr(bytes([cast(int, value)]))
 
         if type_.typename in FLOATING_POINT_TYPES:
             return '%s' % value
 
     if isinstance(type_, AbstractGenericString):
-        return quoted_string(value)
+        return quoted_string(cast(str, value))
 
     assert False, "unknown constant type '%s'" % type_
 
 
-def quoted_string(s):
+def quoted_string(s: str) -> str:
     s = s.replace('\\', '\\\\')
     # strings containing single quote but no double quotes can be wrapped in
     # double quotes without escaping
@@ -288,7 +354,7 @@ def quoted_string(s):
     return "'%s'" % s
 
 
-def get_python_type(type_):
+def get_python_type(type_: AbstractType) -> str:
     if isinstance(type_, NamespacedType):
         return type_.name
 

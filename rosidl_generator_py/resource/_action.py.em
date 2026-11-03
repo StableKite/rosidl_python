@@ -35,10 +35,10 @@ TEMPLATE(
 class Metaclass_@(action.namespaced_type.name)(type):
     """Metaclass of action '@(action.namespaced_type.name)'."""
 
-    _TYPE_SUPPORT = None
+    _TYPE_SUPPORT: _rosidl_builtins.object | None = None
 
     @@classmethod
-    def __import_type_support__(cls):
+    def __import_type_support__(cls) -> None:
         try:
             from rosidl_generator_py import import_type_support
             module = import_type_support('@(package_name)')
@@ -51,22 +51,22 @@ class Metaclass_@(action.namespaced_type.name)(type):
                 'Failed to import needed modules for type support:\n' +
                 traceback.format_exc())
         else:
-            cls._TYPE_SUPPORT = module.type_support_action__@('__'.join(action.namespaced_type.namespaces[1:]))_@(action_name)
-
             from action_msgs.msg import _goal_status_array
-            if _goal_status_array.Metaclass_GoalStatusArray._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(_goal_status_array.Metaclass_GoalStatusArray, '_TYPE_SUPPORT') is None:
                 _goal_status_array.Metaclass_GoalStatusArray.__import_type_support__()
             from action_msgs.srv import _cancel_goal
-            if _cancel_goal.Metaclass_CancelGoal._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(_cancel_goal.Metaclass_CancelGoal, '_TYPE_SUPPORT') is None:
                 _cancel_goal.Metaclass_CancelGoal.__import_type_support__()
 
             from @('.'.join(action.namespaced_type.namespaces)) import @(module_name)
-            if @(module_name).Metaclass_@(action.send_goal_service.namespaced_type.name)._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(@(module_name).Metaclass_@(action.send_goal_service.namespaced_type.name), '_TYPE_SUPPORT') is None:
                 @(module_name).Metaclass_@(action.send_goal_service.namespaced_type.name).__import_type_support__()
-            if @(module_name).Metaclass_@(action.get_result_service.namespaced_type.name)._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(@(module_name).Metaclass_@(action.get_result_service.namespaced_type.name), '_TYPE_SUPPORT') is None:
                 @(module_name).Metaclass_@(action.get_result_service.namespaced_type.name).__import_type_support__()
-            if @(module_name).Metaclass_@(action.feedback_message.structure.namespaced_type.name)._TYPE_SUPPORT is None:
+            if _rosidl_builtins.getattr(@(module_name).Metaclass_@(action.feedback_message.structure.namespaced_type.name), '_TYPE_SUPPORT') is None:
                 @(module_name).Metaclass_@(action.feedback_message.structure.namespaced_type.name).__import_type_support__()
+
+            cls._TYPE_SUPPORT = module.type_support_action__@('__'.join(action.namespaced_type.namespaces[1:]))_@(action_name)
 
 
 class @(action.namespaced_type.name)(metaclass=Metaclass_@(action.namespaced_type.name)):
@@ -92,5 +92,5 @@ class @(action.namespaced_type.name)(metaclass=Metaclass_@(action.namespaced_typ
         # The generic message for get the status of a goal.
         from action_msgs.msg._goal_status_array import GoalStatusArray as GoalStatusMessage
 
-    def __init__(self):
+    def __init__(self) -> None:
         raise NotImplementedError('Action classes can not be instantiated')

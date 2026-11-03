@@ -7,6 +7,21 @@
 # change during runtime so it makes sense to only look for it once.
 from os import getenv
 
+import array as _rosidl_array
+import builtins as _rosidl_builtins
+from types import GenericAlias as _rosidl_GenericAlias
+from typing import TYPE_CHECKING
+from typing import TypedDict as _rosidl_TypedDict
+from typing import Unpack as _rosidl_Unpack
+
+if TYPE_CHECKING:
+    _rosidl_int_array = _rosidl_array.array[_rosidl_builtins.int]
+    _rosidl_float_array = _rosidl_array.array[_rosidl_builtins.float]
+else:
+    # array.array has typed parameters but no runtime __class_getitem__.
+    _rosidl_int_array = _rosidl_GenericAlias(_rosidl_array.array, _rosidl_builtins.int)
+    _rosidl_float_array = _rosidl_GenericAlias(_rosidl_array.array, _rosidl_builtins.float)
+
 ros_python_check_fields = getenv('ROS_PYTHON_CHECK_FIELDS', default='')
 @
 @#######################################################################

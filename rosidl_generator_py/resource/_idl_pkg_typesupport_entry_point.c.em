@@ -26,17 +26,6 @@ static PyMethodDef @(package_name)__methods[] = {
   {NULL, NULL, 0, NULL}  /* sentinel */
 };
 
-static struct PyModuleDef @(package_name)__module = {
-  PyModuleDef_HEAD_INIT,
-  "_@(package_name)_support",
-  "_@(package_name)_doc",
-  -1,  /* -1 means that the module keeps state in global variables */
-  @(package_name)__methods,
-  NULL,
-  NULL,
-  NULL,
-  NULL,
-};
 @
 @[for message in content.get_elements_of_type(Message)]@
 
@@ -85,23 +74,47 @@ TEMPLATE(
 }@
 @[end for]@
 
-PyMODINIT_FUNC
-PyInit_@(package_name)_s__@(typesupport_impl)(void)
+static int
+@(package_name)__exec(PyObject * pymodule)
 {
-  PyObject * pymodule = NULL;
-  pymodule = PyModule_Create(&@(package_name)__module);
-  if (!pymodule) {
-    return NULL;
-  }
   int8_t err;
 @[for register_function in register_functions]@
 
   err = @(register_function)(pymodule);
   if (err) {
-    Py_XDECREF(pymodule);
-    return NULL;
+    return -1;
   }
 @[end for]@
 
-  return pymodule;
+  return 0;
+}
+
+/* Every Python reference belongs to this module's dictionary. Conversion
+ * functions retain their inputs, snapshot mutable containers and own native
+ * message storage; there is no process-global Python cache or NumPy C table.
+ */
+static PyModuleDef_Slot @(package_name)__slots[] = {
+  {Py_mod_exec, (void *)@(package_name)__exec},
+#ifdef Py_GIL_DISABLED
+  {Py_mod_gil, Py_MOD_GIL_NOT_USED},
+#endif
+  {0, NULL}
+};
+
+static struct PyModuleDef @(package_name)__module = {
+  PyModuleDef_HEAD_INIT,
+  "_@(package_name)_support",
+  "_@(package_name)_doc",
+  0,
+  @(package_name)__methods,
+  @(package_name)__slots,
+  NULL,
+  NULL,
+  NULL,
+};
+
+PyMODINIT_FUNC
+PyInit_@(package_name)_s__@(typesupport_impl)(void)
+{
+  return PyModuleDef_Init(&@(package_name)__module);
 }
