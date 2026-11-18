@@ -6,7 +6,9 @@ import sys
 
 try:
     from rosidl_generator_py import generate_py
-except ImportError:
+except ModuleNotFoundError as exc:
+    if exc.name != 'rosidl_generator_py':
+        raise
     # modifying sys.path and importing the Python package with the same
     # name as this script does not work on Windows
     rosidl_generator_py_root = os.path.dirname(os.path.dirname(__file__))
@@ -14,10 +16,16 @@ except ImportError:
         rosidl_generator_py_root, 'rosidl_generator_py', '__init__.py')
     if not os.path.exists(rosidl_generator_py_module):
         raise
-    from importlib.machinery import SourceFileLoader
+    from importlib.util import module_from_spec, spec_from_file_location
 
-    loader = SourceFileLoader('rosidl_generator_py', rosidl_generator_py_module)
-    rosidl_generator_py = loader.load_module()
+    spec = spec_from_file_location('rosidl_generator_py', rosidl_generator_py_module)
+    rosidl_generator_py = module_from_spec(spec)
+    sys.modules[spec.name] = rosidl_generator_py
+    try:
+        spec.loader.exec_module(rosidl_generator_py)
+    except BaseException:
+        sys.modules.pop(spec.name, None)
+        raise
     generate_py = rosidl_generator_py.generate_py
 
 
