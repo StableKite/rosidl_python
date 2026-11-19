@@ -47,7 +47,7 @@ from rosidl_parser.definition import UnboundedString
 def test_generated_type_support_on_multiple_threads() -> None:
     environment = dict(os.environ)
     environment.pop('PYTHON_GIL', None)
-    subprocess.run([sys.executable, '-c', '''
+    subprocess.run([sys.executable, '-c', """
 import sys
 assert sys.flags.gil is None and not sys._is_gil_enabled()
 
@@ -92,7 +92,7 @@ def convert_messages(_worker):
 with ThreadPoolExecutor(max_workers=8) as executor:
     list(executor.map(convert_messages, range(8)))
 assert not sys._is_gil_enabled()
-'''], env=environment, check=True)
+"""], env=environment, check=True)
 
 
 def test_basic_types() -> None:
