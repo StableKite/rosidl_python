@@ -14,7 +14,10 @@
 
 import array
 import math
+import os
+import subprocess
 import sys
+import sysconfig
 
 import numpy
 import pytest
@@ -37,6 +40,59 @@ from rosidl_parser.definition import BoundedString
 from rosidl_parser.definition import NamespacedType
 from rosidl_parser.definition import UnboundedSequence
 from rosidl_parser.definition import UnboundedString
+
+
+@pytest.mark.skipif(not sysconfig.get_config_var('Py_GIL_DISABLED'),
+                    reason='requires a free-threaded interpreter')
+def test_generated_type_support_on_multiple_threads() -> None:
+    environment = dict(os.environ)
+    environment.pop('PYTHON_GIL', None)
+    subprocess.run([sys.executable, '-c', '''
+import sys
+assert sys.flags.gil is None and not sys._is_gil_enabled()
+
+from concurrent.futures import ThreadPoolExecutor
+from ctypes import (PYFUNCTYPE, c_bool, c_char_p, c_void_p, py_object, pythonapi)
+from importlib import import_module
+from threading import Barrier
+
+from rosidl_generator_py.msg import BasicTypes, StringArrays, UnboundedSequences
+
+get_pointer = pythonapi.PyCapsule_GetPointer
+get_pointer.argtypes = (py_object, c_char_p)
+get_pointer.restype = c_void_p
+support = import_module('rosidl_generator_py.rosidl_generator_py_s__rosidl_typesupport_c')
+messages = (
+    ('string_arrays', StringArrays(string_static_array_value=['a', 'b', 'c'])),
+    ('unbounded_sequences', UnboundedSequences(
+        basic_types_values=[BasicTypes(bool_value=True)], string_values=['first', 'second'])),
+)
+converters = []
+for name, message in messages:
+    create = PYFUNCTYPE(c_void_p)(
+        get_pointer(getattr(support, f'create_ros_message_msg__msg__{name}'), None))
+    convert = PYFUNCTYPE(c_bool, py_object, c_void_p)(
+        get_pointer(getattr(support, f'convert_from_py_msg__msg__{name}'), None))
+    destroy = PYFUNCTYPE(None, c_void_p)(
+        get_pointer(getattr(support, f'destroy_ros_message_msg__msg__{name}'), None))
+    converters.append((message, create, convert, destroy))
+
+ready = Barrier(8)
+def convert_messages(_worker):
+    ready.wait(timeout=10)
+    for _ in range(50):
+        for message, create, convert, destroy in converters:
+            native = create()
+            assert native
+            try:
+                assert convert(message, native)
+            finally:
+                destroy(native)
+
+with ThreadPoolExecutor(max_workers=8) as executor:
+    list(executor.map(convert_messages, range(8)))
+assert not sys._is_gil_enabled()
+'''], env=environment, check=True)
 
 
 def test_basic_types() -> None:

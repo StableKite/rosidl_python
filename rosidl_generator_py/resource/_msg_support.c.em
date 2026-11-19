@@ -225,18 +225,14 @@ if isinstance(type_, AbstractNestedType):
 nested_type = '__'.join(type_.namespaced_name())
 }@
 @[    if isinstance(member.type, AbstractNestedType)]@
-    PyObject * seq_field = PySequence_Fast(field, "expected a sequence in '@(member.name)'");
+    // An owned tuple keeps both the length and its items stable during conversion.
+    PyObject * seq_field = PySequence_Tuple(field);
     if (!seq_field) {
       Py_DECREF(field);
       return false;
     }
 @[      if isinstance(member.type, AbstractSequence)]@
-    Py_ssize_t size = PySequence_Size(field);
-    if (-1 == size) {
-      Py_DECREF(seq_field);
-      Py_DECREF(field);
-      return false;
-    }
+    Py_ssize_t size = PyTuple_GET_SIZE(seq_field);
     if (!@(nested_type)__Sequence__init(&(ros_message->@(member.name)), size)) {
       PyErr_SetString(PyExc_RuntimeError, "unable to create @(nested_type)__Sequence ros_message");
       Py_DECREF(seq_field);
@@ -246,10 +242,16 @@ nested_type = '__'.join(type_.namespaced_name())
     @(nested_type) * dest = ros_message->@(member.name).data;
 @[      else]@
     Py_ssize_t size = @(member.type.size);
+    if (PyTuple_GET_SIZE(seq_field) != size) {
+      PyErr_SetString(PyExc_ValueError, "incorrect array length in '@(member.name)'");
+      Py_DECREF(seq_field);
+      Py_DECREF(field);
+      return false;
+    }
     @(nested_type) * dest = ros_message->@(member.name);
 @[      end if]@
     for (Py_ssize_t i = 0; i < size; ++i) {
-      if (!@('__'.join(type_.namespaces + [convert_camel_case_to_lower_case_underscore(type_.name)]))__convert_from_py(PySequence_Fast_GET_ITEM(seq_field, i), &dest[i])) {
+      if (!@('__'.join(type_.namespaces + [convert_camel_case_to_lower_case_underscore(type_.name)]))__convert_from_py(PyTuple_GET_ITEM(seq_field, i), &dest[i])) {
         Py_DECREF(seq_field);
         Py_DECREF(field);
         return false;
@@ -309,7 +311,14 @@ nested_type = '__'.join(type_.namespaced_name())
         Py_DECREF(field);
         return false;
       }
-      Py_ssize_t size = view.len / sizeof(@primitive_msg_type_to_c(member.type.value_type));
+      size_t element_size = sizeof(@primitive_msg_type_to_c(member.type.value_type));
+      if (view.len % element_size != 0) {
+        PyErr_SetString(PyExc_ValueError, "incorrect buffer size in '@(member.name)'");
+        PyBuffer_Release(&view);
+        Py_DECREF(field);
+        return false;
+      }
+      Py_ssize_t size = view.len / element_size;
       if (!rosidl_runtime_c__@(member.type.value_type.typename)__Sequence__init(&(ros_message->@(member.name)), size)) {
         PyErr_SetString(PyExc_RuntimeError, "unable to create @(member.type.value_type.typename)__Sequence ros_message");
         PyBuffer_Release(&view);
@@ -338,19 +347,14 @@ nested_type = '__'.join(type_.namespaced_name())
       assert(PyArray_NDIM(seq_field) == 1);
       assert(PyArray_TYPE(seq_field) == @(SPECIAL_NESTED_BASIC_TYPES[member.type.value_type.typename]['dtype'].replace('numpy.', 'NPY_').upper()));
 @[    else]@
-      PyObject * seq_field = PySequence_Fast(field, "expected a sequence in '@(member.name)'");
+      PyObject * seq_field = PySequence_Tuple(field);
       if (!seq_field) {
         Py_DECREF(field);
         return false;
       }
 @[    end if]@
 @[    if isinstance(member.type, AbstractSequence)]@
-      Py_ssize_t size = PySequence_Size(field);
-      if (-1 == size) {
-        Py_DECREF(seq_field);
-        Py_DECREF(field);
-        return false;
-      }
+      Py_ssize_t size = PyTuple_GET_SIZE(seq_field);
 @[      if isinstance(member.type.value_type, AbstractString)]@
       if (!rosidl_runtime_c__String__Sequence__init(&(ros_message->@(member.name)), size)) {
         PyErr_SetString(PyExc_RuntimeError, "unable to create String__Sequence ros_message");
@@ -376,16 +380,21 @@ nested_type = '__'.join(type_.namespaced_name())
       @primitive_msg_type_to_c(member.type.value_type) * dest = ros_message->@(member.name).data;
 @[    else]@
       Py_ssize_t size = @(member.type.size);
+@[      if isinstance(member.type.value_type, BasicType) and member.type.value_type.typename in SPECIAL_NESTED_BASIC_TYPES]@
+      if (PyArray_DIM(seq_field, 0) != size) {
+@[      else]@
+      if (PyTuple_GET_SIZE(seq_field) != size) {
+@[      end if]@
+        PyErr_SetString(PyExc_ValueError, "incorrect array length in '@(member.name)'");
+        Py_DECREF(seq_field);
+        Py_DECREF(field);
+        return false;
+      }
       @primitive_msg_type_to_c(member.type.value_type) * dest = ros_message->@(member.name);
 @[    end if]@
       for (Py_ssize_t i = 0; i < size; ++i) {
 @[    if not isinstance(member.type, Array) or not isinstance(member.type.value_type, BasicType) or member.type.value_type.typename not in SPECIAL_NESTED_BASIC_TYPES]@
-        PyObject * item = PySequence_Fast_GET_ITEM(seq_field, i);
-        if (!item) {
-          Py_DECREF(seq_field);
-          Py_DECREF(field);
-          return false;
-        }
+        PyObject * item = PyTuple_GET_ITEM(seq_field, i);
 @[    end if]@
 @[    if isinstance(member.type, Array) and isinstance(member.type.value_type, BasicType) and member.type.value_type.typename in SPECIAL_NESTED_BASIC_TYPES]@
         @primitive_msg_type_to_c(member.type.value_type) tmp = *(@(SPECIAL_NESTED_BASIC_TYPES[member.type.value_type.typename]['dtype'].replace('numpy.', 'npy_')) *)PyArray_GETPTR1(seq_field, i);

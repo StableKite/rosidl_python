@@ -93,6 +93,12 @@ PyInit_@(package_name)_s__@(typesupport_impl)(void)
   if (!pymodule) {
     return NULL;
   }
+#ifdef Py_GIL_DISABLED
+  if (PyUnstable_Module_SetGIL(pymodule, Py_MOD_GIL_NOT_USED) < 0) {
+    Py_DECREF(pymodule);
+    return NULL;
+  }
+#endif
   int8_t err;
 @[for register_function in register_functions]@
 
