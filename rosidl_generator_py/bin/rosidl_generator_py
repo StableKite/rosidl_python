@@ -4,18 +4,12 @@ import argparse
 import os
 import sys
 
-try:
-    from rosidl_generator_py import generate_py
-except ModuleNotFoundError as exc:
-    if exc.name != 'rosidl_generator_py':
-        raise
-    # modifying sys.path and importing the Python package with the same
-    # name as this script does not work on Windows
-    rosidl_generator_py_root = os.path.dirname(os.path.dirname(__file__))
-    rosidl_generator_py_module = os.path.join(
-        rosidl_generator_py_root, 'rosidl_generator_py', '__init__.py')
-    if not os.path.exists(rosidl_generator_py_module):
-        raise
+# A source build can find an older generator in an existing ROS overlay.
+# Resolve the package beside this launcher first without changing sys.path.
+rosidl_generator_py_root = os.path.dirname(os.path.dirname(__file__))
+rosidl_generator_py_module = os.path.join(
+    rosidl_generator_py_root, 'rosidl_generator_py', '__init__.py')
+if os.path.isfile(rosidl_generator_py_module):
     from importlib.util import module_from_spec, spec_from_file_location
 
     spec = spec_from_file_location('rosidl_generator_py', rosidl_generator_py_module)
@@ -27,6 +21,8 @@ except ModuleNotFoundError as exc:
         sys.modules.pop(spec.name, None)
         raise
     generate_py = rosidl_generator_py.generate_py
+else:
+    from rosidl_generator_py import generate_py
 
 
 def main(argv=sys.argv[1:]):
