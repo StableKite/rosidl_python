@@ -111,7 +111,7 @@ bound = 1.7976931348623157e+308
 @[  elif isinstance(type_, BasicType) and type_.typename == 'octet']@
                     (isinstance(value, (bytes, bytearray, memoryview)) and
                      len(value) == 1), \
-                    "The '@(member.name)' field must be of type 'bytes' or 'ByteString' with length 1"
+                    "The '@(member.name)' field must be bytes, bytearray, or memoryview of length 1"
 @[  elif isinstance(type_, BasicType) and type_.typename == 'char']@
                     (isinstance(value, (str, collections.UserString)) and
                      len(value) == 1 and ord(value) >= -128 and ord(value) < 128), \

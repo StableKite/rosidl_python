@@ -457,7 +457,7 @@ def get_setter_and_getter_type(member: Member, type_imports: set[str]) -> tuple[
         type_imports.add('import collections')
         type_annotation = 'typing.Union[str, collections.UserString]'
     elif isinstance(type_, BasicType) and type_.typename == 'octet':
-        type_annotation = 'typing.Union[bytes, collections.abc.ByteString]'
+        type_annotation = 'typing.Union[bytes, bytearray, memoryview]'
     elif isinstance(type_, NamespacedType):
         type_annotation = get_absolute_namespaced_typehint(type_, type_imports)
     else:
