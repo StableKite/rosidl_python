@@ -191,7 +191,7 @@ foreach(_typesupport_impl ${_typesupport_impls})
 
   set(_target_name "${PROJECT_NAME}_s__${_typesupport_impl}")
 
-  python3_add_library(${_target_name} MODULE
+  python3_add_library(${_target_name} MODULE WITH_SOABI
     ${_generated_extension_${_typesupport_impl}_files}
   )
   add_dependencies(

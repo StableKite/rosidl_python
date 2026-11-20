@@ -54,6 +54,7 @@ assert sys.flags.gil is None and not sys._is_gil_enabled()
 from concurrent.futures import ThreadPoolExecutor
 from ctypes import (PYFUNCTYPE, c_bool, c_char_p, c_void_p, py_object, pythonapi)
 from importlib import import_module
+from sysconfig import get_config_var
 from threading import Barrier
 
 from rosidl_generator_py.msg import BasicTypes, StringArrays, UnboundedSequences
@@ -62,6 +63,7 @@ get_pointer = pythonapi.PyCapsule_GetPointer
 get_pointer.argtypes = (py_object, c_char_p)
 get_pointer.restype = c_void_p
 support = import_module('rosidl_generator_py.rosidl_generator_py_s__rosidl_typesupport_c')
+assert support.__file__.endswith(get_config_var('EXT_SUFFIX')), support.__file__
 messages = (
     ('string_arrays', StringArrays(string_static_array_value=['a', 'b', 'c'])),
     ('unbounded_sequences', UnboundedSequences(
